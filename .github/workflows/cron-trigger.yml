@@ -11,4 +11,4 @@ jobs:
     steps:
       - name: Call Vercel Birthday Cron API
         run: |
-          curl -X GET "https://birthday-wishify-7y73.vercel.app/api/birthday-cron/route.schedule"
+          curl -X GET "https://birthday-wishify-7y73.vercel.app/api/birthday-cron/schedule"
