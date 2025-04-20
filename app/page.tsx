@@ -31,6 +31,8 @@ export default function DashboardPage() {
   const [usersWithBirthday, setUsersWithBirthday] = useState<User[]>([]);
   const [emailsSentToday, setEmailsSentToday] = useState(0);
   const [logs, setLogs] = useState<Log[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Auto-trigger /api/init on first load
   useEffect(() => {
@@ -54,30 +56,40 @@ export default function DashboardPage() {
 
   // Handler for clearing logs
   const handleClearLogs = async () => {
-    await fetch('/api/logs', { method: 'DELETE' });
-    // Re-fetch dashboard data to update UI
-    fetch('/api/dashboard')
-      .then(res => res.json())
-      .then(data => {
-        setUsers(data.users);
-        setToday(data.today);
-        setUsersWithBirthday(data.usersWithBirthday);
-        setEmailsSentToday(data.emailsSentToday);
-        setLogs(data.logs);
-      });
+    if (!window.confirm('Are you sure you want to clear all logs? This action cannot be undone.')) return;
+    setLoading(true);
+    setToast(null);
+    try {
+      const res = await fetch('/api/logs', { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to clear logs');
+      await handleRefreshLogs();
+      setToast({ type: 'success', message: 'Logs cleared successfully.' });
+    } catch (err) {
+      setToast({ type: 'error', message: 'Failed to clear logs.' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handler for refreshing logs
   const handleRefreshLogs = async () => {
-    fetch('/api/dashboard')
-      .then(res => res.json())
-      .then(data => {
-        setUsers(data.users);
-        setToday(data.today);
-        setUsersWithBirthday(data.usersWithBirthday);
-        setEmailsSentToday(data.emailsSentToday);
-        setLogs(data.logs);
-      });
+    setLoading(true);
+    setToast(null);
+    try {
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) throw new Error('Failed to fetch dashboard');
+      const data = await res.json();
+      setUsers(data.users);
+      setToday(data.today);
+      setUsersWithBirthday(data.usersWithBirthday);
+      setEmailsSentToday(data.emailsSentToday);
+      setLogs(data.logs);
+      setToast({ type: 'success', message: 'Dashboard refreshed.' });
+    } catch (err) {
+      setToast({ type: 'error', message: 'Failed to refresh dashboard.' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -95,13 +107,11 @@ export default function DashboardPage() {
             <ul className="max-h-72 overflow-y-auto">
               {users.map(user => {
                 const isBirthday = usersWithBirthday.some(u => u.email === user.email);
-                const alreadyEmailed = emailedToday.has(user.email);
                 return (
-                  <li key={user.email} className={`flex items-center justify-between py-2 border-b last:border-b-0 ${isBirthday && !alreadyEmailed ? 'bg-yellow-100 dark:bg-yellow-900' : ''}`}>
+                  <li key={user.email} className={`flex items-center justify-between py-2 border-b last:border-b-0 ${isBirthday ? 'bg-yellow-100 dark:bg-yellow-900' : ''}`}>
                     <span className="font-medium">{user.name}</span>
                     <span>{user.dob}</span>
-                    {isBirthday && !alreadyEmailed && <Badge className="ml-2" variant="destructive">Birthday Today!</Badge>}
-                    {isBirthday && alreadyEmailed && <Badge className="ml-2" variant="secondary">Already Emailed</Badge>}
+                    {isBirthday && <Badge className="ml-2" variant="destructive">Birthday Today!</Badge>}
                   </li>
                 );
               })}
@@ -129,15 +139,17 @@ export default function DashboardPage() {
             <div>
               <button
                 onClick={handleRefreshLogs}
-                className="ml-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+                className="ml-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition disabled:opacity-50"
+                disabled={loading}
               >
-                Refresh Logs
+                {loading ? 'Loading...' : 'Refresh Logs'}
               </button>
               <button
                 onClick={handleClearLogs}
-                className="ml-2 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
+                className="ml-2 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition disabled:opacity-50"
+                disabled={loading}
               >
-                Clear Logs
+                {loading ? 'Loading...' : 'Clear Logs'}
               </button>
             </div>
           </CardHeader>
@@ -154,6 +166,11 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </section>
+      {toast && (
+        <div className={`fixed top-6 right-6 px-4 py-2 rounded shadow-lg z-50 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+          {toast.message}
+        </div>
+      )}
     </main>
   );
 }

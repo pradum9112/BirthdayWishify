@@ -25,10 +25,11 @@ export async function GET() {
   const uniqueUsers = Array.from(
     new Map(users.map((u: { name: string; email: string; dob: string }) => [u.email, u])).values()
   );
-  const emailed = new Set<string>();
-  const sent: string[] = [];
 
-  // --- Load today's email logs to prevent duplicate sends ---
+  // Only users whose birthday is today
+  const todayBirthdayUsers = uniqueUsers.filter(user => isTodayBirthday(user.dob));
+
+  // Load today's email logs to prevent duplicate sends
   const LOG_PATH = path.resolve(process.cwd(), 'data/emailLogs.json');
   let todayLogs: any[] = [];
   if (fs.existsSync(LOG_PATH)) {
@@ -37,20 +38,21 @@ export async function GET() {
     todayLogs = logs.filter((log: any) => log.sentAt && log.sentAt.startsWith(today));
   }
 
-  for (const user of uniqueUsers) {
-    if (isTodayBirthday(user.dob) && !emailed.has(user.email)) {
-      // Check if already sent today
-      const alreadySent = todayLogs.some((log: any) => log.email === user.email);
-      if (alreadySent) continue;
+  const sent: string[] = [];
+  for (const user of todayBirthdayUsers) {
+    // Check if already sent today
+    const alreadySent = todayLogs.some((log: any) => log.email === user.email);
+    if (!alreadySent) {
       try {
         await sendBirthdayEmail(user.email, user.name);
         logEmailSend(user);
-        emailed.add(user.email);
         sent.push(user.email);
       } catch (err) {
         console.error(`Failed to send birthday email to ${user.email}:`, err);
       }
     }
   }
-  return NextResponse.json({ status: 'done', sent });
+
+  // Return both the list of today's birthdays and which were emailed this run
+  return NextResponse.json({ status: 'done', birthdaysToday: todayBirthdayUsers, sent });
 }
