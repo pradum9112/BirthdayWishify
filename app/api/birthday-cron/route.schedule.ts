@@ -2,8 +2,8 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { sendBirthdayEmail } from '@/utils/emailService';
-import { logEmailSend } from '@/utils/logger';
+import { sendBirthdayEmail } from '../../../utils/emailService';
+import { logEmailSend } from '../../../utils/logger';
 
 const USERS_PATH = path.resolve(process.cwd(), 'data/users.json');
 
