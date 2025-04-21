@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -58,17 +58,7 @@ export default function DashboardPage() {
       fetch('/api/logs')
         .then(res => res.json())
         .then(data => {
-          // Deduplicate logs by email+sentAt (frontend safety)
-          const seen = new Set();
-          const unique: Log[] = [];
-          for (const log of (data.logs as Log[])) {
-            const key = `${log.email}_${log.sentAt}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              unique.push(log);
-            }
-          }
-          setLogs(unique);
+          setLogs(data.logs || []);
         });
     };
     fetchLogs();
@@ -149,6 +139,20 @@ export default function DashboardPage() {
     }
   };
 
+  // Deduplicate logs by email+sentAt (frontend safety, in case backend fails)
+  const dedupedLogs = useMemo(() => {
+    const seen = new Set();
+    const unique: Log[] = [];
+    for (const log of logs) {
+      const key = `${log.email}_${log.sentAt}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(log);
+      }
+    }
+    return unique;
+  }, [logs]);
+
   // Show toast for 5 seconds then auto-close
   useEffect(() => {
     if (toast) {
@@ -220,16 +224,12 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ul className="max-h-72 overflow-y-auto">
-              {logs.length === 0 && <li className="text-gray-500">No logs yet.</li>}
-              {logs.map((log, idx) => (
-                <li key={idx} className="py-2 border-b last:border-b-0 flex flex-col">
+              {dedupedLogs.length === 0 && <li className="text-gray-500">No logs yet.</li>}
+              {dedupedLogs.map(log => (
+                <li key={`${log.email}_${log.sentAt}`} className="flex flex-col border-b last:border-b-0 py-2">
                   <span><b>{log.name}</b> ({log.email})</span>
-                  <span className="text-xs text-gray-500">Birthday: {log.dob}</span>
-                  {log.sentAt && (
-                    <span className="text-xs text-blue-700">
-                      Sent at: <ClientDate dateString={log.sentAt} />
-                    </span>
-                  )}
+                  <span>Birthday: {log.dob}</span>
+                  <span>Sent at: <ClientDate dateString={log.sentAt} /></span>
                 </li>
               ))}
             </ul>
