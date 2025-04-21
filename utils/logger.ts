@@ -6,7 +6,8 @@ export async function logEmailSend(user: { name: string; email: string; dob: str
   await dbConnect();
   await EmailLog.create({
     ...user,
-    sentAt: new Date().toISOString()
+    sentAt: new Date().toISOString(),
+    sentAtDate: new Date().toISOString().slice(0, 10),
   });
 }
 
@@ -26,5 +27,6 @@ export async function getLogs(limit = 50): Promise<IEmailLogLean[]> {
     dob: log.dob,
     email: log.email,
     sentAt: log.sentAt,
+    sentAtDate: log.sentAtDate,
   }));
 }
