@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLogs } from '@/utils/logger';
-import fs from 'fs';
-import path from 'path';
-
-const LOG_PATH = path.resolve(process.cwd(), 'data/emailLogs.json');
+import dbConnect from '@/utils/mongodb';
+import EmailLog from '@/models/EmailLog';
 
 export async function GET(req: NextRequest) {
-  const logs = getLogs(100);
+  await dbConnect();
+  const logs = await EmailLog.find({}).sort({ sentAt: -1 }).limit(100).lean();
   return NextResponse.json({ logs });
 }
 
 export async function DELETE(req: NextRequest) {
-  fs.writeFileSync(LOG_PATH, JSON.stringify([], null, 2));
+  await dbConnect();
+  await EmailLog.deleteMany({});
   return NextResponse.json({ status: 'ok', message: 'Logs cleared.' });
 }

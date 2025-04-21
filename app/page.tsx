@@ -7,6 +7,7 @@ interface User {
   name: string;
   dob: string;
   email: string;
+  sentAt?: string;
 }
 
 interface Log {
@@ -47,12 +48,58 @@ export default function DashboardPage() {
         setToday(data.today);
         setUsersWithBirthday(data.usersWithBirthday);
         setEmailsSentToday(data.emailsSentToday);
-        setLogs(data.logs);
       });
   }, []);
 
+  useEffect(() => {
+    fetch('/api/logs')
+      .then(res => res.json())
+      .then(data => {
+        setLogs(data.logs || []);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/birthday-cron/schedule')
+      .then(async res => {
+        if (!res.ok) {
+          const data = await res.json();
+          if (data?.error === 'limit_exceeded') {
+            setToast({ type: 'error', message: data.message });
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Get list of emails already sent today
-  const emailedToday = new Set(logs.map(log => log.email));
+  const emailedToday = new Set([]);
+
+  // Handler for refreshing logs
+  const handleRefreshLogs = async () => {
+    setLoading(true);
+    setToast(null);
+    try {
+      const [logsRes, usersRes] = await Promise.all([
+        fetch('/api/logs'),
+        fetch('/api/users')
+      ]);
+      if (!logsRes.ok || !usersRes.ok) throw new Error('Failed to fetch logs or users');
+      const logsData = await logsRes.json();
+      const usersData = await usersRes.json();
+      setLogs(logsData.logs || []);
+      setUsers(usersData.users || []);
+      setToast({ type: 'success', message: 'Logs & users refreshed.' });
+    } catch (err: any) {
+      if (err?.message && err.message.includes('limit_exceeded')) {
+        setToast({ type: 'error', message: 'Daily user sending limit exceeded. For more information on Gmail' });
+      } else {
+        setToast({ type: 'error', message: 'Failed to refresh logs.' });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handler for clearing logs
   const handleClearLogs = async () => {
@@ -62,31 +109,10 @@ export default function DashboardPage() {
     try {
       const res = await fetch('/api/logs', { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to clear logs');
-      await handleRefreshLogs();
+      setLogs([]);
       setToast({ type: 'success', message: 'Logs cleared successfully.' });
     } catch (err) {
       setToast({ type: 'error', message: 'Failed to clear logs.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handler for refreshing logs
-  const handleRefreshLogs = async () => {
-    setLoading(true);
-    setToast(null);
-    try {
-      const res = await fetch('/api/dashboard');
-      if (!res.ok) throw new Error('Failed to fetch dashboard');
-      const data = await res.json();
-      setUsers(data.users);
-      setToday(data.today);
-      setUsersWithBirthday(data.usersWithBirthday);
-      setEmailsSentToday(data.emailsSentToday);
-      setLogs(data.logs);
-      setToast({ type: 'success', message: 'Dashboard refreshed.' });
-    } catch (err) {
-      setToast({ type: 'error', message: 'Failed to refresh dashboard.' });
     } finally {
       setLoading(false);
     }
@@ -159,7 +185,12 @@ export default function DashboardPage() {
               {logs.map((log, idx) => (
                 <li key={idx} className="py-2 border-b last:border-b-0 flex flex-col">
                   <span><b>{log.name}</b> ({log.email})</span>
-                  <span className="text-xs text-gray-500">Birthday: {log.dob} | Sent at: <ClientDate dateString={log.sentAt} /></span>
+                  <span className="text-xs text-gray-500">Birthday: {log.dob}</span>
+                  {log.sentAt && (
+                    <span className="text-xs text-blue-700">
+                      Sent at: <ClientDate dateString={log.sentAt} />
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

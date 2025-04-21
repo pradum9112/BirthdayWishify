@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { startBirthdayCron } from '@/utils/cronService';
 
-let cronStarted = false;
+const globalWithCron = global as typeof globalThis & { cronStarted?: boolean };
 
 export async function GET(req: NextRequest) {
-  if (!cronStarted) {
+  if (!globalWithCron.cronStarted) {
     startBirthdayCron();
-    cronStarted = true;
+    globalWithCron.cronStarted = true;
   }
   return NextResponse.json({ status: 'ok', message: 'Birthday cron started.' });
 }
