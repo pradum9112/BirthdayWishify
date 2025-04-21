@@ -17,6 +17,12 @@ function isTodayBirthday(dob: string, todayStr?: string) {
 
 export async function GET() {
   await dbConnect();
+  // Calculate cron window (2 minutes for testing)
+  const cronIntervalMinutes = 2;
+  const now = new Date();
+  const windowStart = new Date(Math.floor(now.getTime() / (cronIntervalMinutes * 60 * 1000)) * cronIntervalMinutes * 60 * 1000);
+  const windowEnd = new Date(windowStart.getTime() + cronIntervalMinutes * 60 * 1000);
+
   // Use India timezone for today
   const indiaDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
   const today = indiaDate;
@@ -31,18 +37,23 @@ export async function GET() {
   const sent: string[] = [];
   for (const user of todayBirthdayUsers) {
     try {
-      // Atomic upsert: only one request will send the email
-      const log = await EmailLog.findOneAndUpdate(
-        { email: user.email, sentAtDate: today },
-        { $setOnInsert: { name: user.name, dob: user.dob, email: user.email, sentAt: new Date().toISOString(), sentAtDate: today } },
-        { upsert: true, new: false }
-      ).lean();
-      if (!log) {
+      // Per-cron-window deduplication: only send if no log exists in this window
+      const existingLog = await EmailLog.findOne({
+        email: user.email,
+        sentAt: { $gte: windowStart.toISOString(), $lt: windowEnd.toISOString() }
+      }).lean();
+      if (!existingLog) {
         await sendBirthdayEmail(user.email, user.name);
+        await EmailLog.create({
+          name: user.name,
+          dob: user.dob,
+          email: user.email,
+          sentAt: now.toISOString(),
+          sentAtDate: today
+        });
         logEmailSend(user);
         sent.push(user.email);
       }
-      // If log existed, do nothing
     } catch (emailErr: any) {
       console.error(`Failed to send birthday email to ${user.email}:`, emailErr);
       // Gmail sending limit error handling
