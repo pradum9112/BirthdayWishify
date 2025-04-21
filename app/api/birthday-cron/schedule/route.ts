@@ -1,3 +1,6 @@
+// IMPORTANT: This endpoint must be triggered by an external scheduler (e.g., EasyCron, cron-job.org, GitHub Actions) every 5 minutes in production.
+// Serverless environments do NOT run background jobs. See documentation for details.
+
 // schedule: "*/2 * * * *"
 import { NextResponse } from 'next/server';
 import dbConnect from '@/utils/mongodb';
