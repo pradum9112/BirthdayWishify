@@ -51,6 +51,28 @@ export default function DashboardPage() {
       });
   }, []);
 
+  // Poll logs every 10 seconds for live updates
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLogs = () => {
+      fetch('/api/logs')
+        .then(res => res.json())
+        .then(data => {
+          // Deduplicate logs by email+sentAt
+          const unique: Log[] = Array.from(
+            new Map((data.logs as Log[]).map((log: Log) => [`${log.email}_${log.sentAt}`, log])).values()
+          );
+          setLogs(unique);
+        });
+    };
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
   useEffect(() => {
     fetch('/api/logs')
       .then(res => res.json())

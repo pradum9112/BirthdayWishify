@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBirthdayCron } from '@/utils/cronService';
+// import { startBirthdayCron } from '@/utils/cronService';
 
 const globalWithCron = global as typeof globalThis & { cronStarted?: boolean };
 
 export async function GET(req: NextRequest) {
-  if (!globalWithCron.cronStarted) {
-    startBirthdayCron();
-    globalWithCron.cronStarted = true;
-  }
-  return NextResponse.json({ status: 'ok', message: 'Birthday cron started.' });
+  // The local cron has been disabled for production safety.
+  // Use the /api/birthday-cron/schedule endpoint and an external scheduler for birthday emails.
+  return NextResponse.json({ status: 'ok', message: 'Birthday cron is managed by the schedule endpoint.' });
 }
