@@ -86,13 +86,21 @@ export async function GET() {
         const sentKey = `${user.email}_${windowStart.toISOString()}`;
         if (!existingLog && !sentSet.has(sentKey)) {
           await sendBirthdayEmail(user.email, user.name);
-          await EmailLog.create({
-            name: user.name,
-            dob: user.dob,
-            email: user.email,
-            sentAt: now.toISOString(),
-            sentAtDate: today
-          });
+          try {
+            await EmailLog.create({
+              name: user.name,
+              dob: user.dob,
+              email: user.email,
+              sentAt: now.toISOString(),
+              sentAtDate: today
+            });
+          } catch (err: any) {
+            if (err.code === 11000) {
+              // Duplicate key error: another process already inserted, safe to ignore
+            } else {
+              throw err;
+            }
+          }
           logEmailSend(user);
           sent.push(user.email);
           sentSet.add(sentKey);

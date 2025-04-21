@@ -49,13 +49,21 @@ export function startBirthdayCron() {
           if (!existingLog) {
             try {
               await sendBirthdayEmail(user.email, user.name);
-              await EmailLog.create({
-                name: user.name,
-                dob: user.dob,
-                email: user.email,
-                sentAt: now.toISOString(),
-                sentAtDate: today
-              });
+              try {
+                await EmailLog.create({
+                  name: user.name,
+                  dob: user.dob,
+                  email: user.email,
+                  sentAt: now.toISOString(),
+                  sentAtDate: today
+                });
+              } catch (err: any) {
+                if (err.code === 11000) {
+                  // Duplicate key error: another process already inserted, safe to ignore
+                } else {
+                  throw err;
+                }
+              }
             } catch (err) {
               console.error(`Failed to send birthday email to ${user.email}:`, err);
             }
