@@ -75,6 +75,7 @@ export async function GET() {
     const todayBirthdayUsers: IUserLean[] = uniqueUsers.filter(user => isTodayBirthday(user.dob, today));
 
     const sent: string[] = [];
+    const sentSet = new Set<string>(); // To ensure no duplicate logs per user per window
     for (const user of todayBirthdayUsers) {
       try {
         // Per-cron-window deduplication: only send if no log exists in this window
@@ -82,7 +83,8 @@ export async function GET() {
           email: user.email,
           sentAt: { $gte: windowStart.toISOString(), $lt: windowEnd.toISOString() }
         }).lean();
-        if (!existingLog) {
+        const sentKey = `${user.email}_${windowStart.toISOString()}`;
+        if (!existingLog && !sentSet.has(sentKey)) {
           await sendBirthdayEmail(user.email, user.name);
           await EmailLog.create({
             name: user.name,
@@ -93,6 +95,7 @@ export async function GET() {
           });
           logEmailSend(user);
           sent.push(user.email);
+          sentSet.add(sentKey);
         }
       } catch (emailErr: any) {
         console.error(`Failed to send birthday email to ${user.email}:`, emailErr);
