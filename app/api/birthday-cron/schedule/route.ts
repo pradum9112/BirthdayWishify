@@ -22,14 +22,14 @@ export async function GET() {
   const today = indiaDate;
 
   // Get users from MongoDB
-  const users: IUserLean[] = await User.find({}).lean();
+  const users = (await User.find({}).lean() as unknown) as IUserLean[];
   // Deduplicate users by email
   const uniqueUsers: IUserLean[] = Array.from(new Map(users.map(u => [u.email, u])).values());
   // Only users whose birthday is today
   const todayBirthdayUsers: IUserLean[] = uniqueUsers.filter(user => isTodayBirthday(user.dob, today));
 
   // Load today's email logs to prevent duplicate sends
-  const todayLogs: IEmailLogLean[] = await EmailLog.find({ sentAt: { $regex: `^${today}` } }).lean<IEmailLogLean>();
+  const todayLogs: IEmailLogLean[] = await EmailLog.find({ sentAt: { $regex: `^${today}` } }).lean();
   const sent: string[] = [];
   for (const user of todayBirthdayUsers) {
     // Check if already sent today
