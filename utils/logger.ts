@@ -20,5 +20,11 @@ export async function getTodayEmailCount(todayStr?: string): Promise<number> {
 // Get logs from MongoDB, most recent first
 export async function getLogs(limit = 50): Promise<IEmailLogLean[]> {
   await dbConnect();
-  return EmailLog.find({}).sort({ sentAt: -1 }).limit(limit).lean();
+  const rawLogs = await EmailLog.find({}).sort({ sentAt: -1 }).limit(limit).lean();
+  return rawLogs.map((log: any) => ({
+    name: log.name,
+    dob: log.dob,
+    email: log.email,
+    sentAt: log.sentAt,
+  }));
 }
