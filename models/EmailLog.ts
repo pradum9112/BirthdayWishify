@@ -19,6 +19,6 @@ const EmailLogSchema: Schema = new Schema({
 });
 
 // Ensure unique email+date per day
-EmailLogSchema.index({ email: 1, sentAtDate: 1 }, { unique: true });
+// EmailLogSchema.index({ email: 1, sentAtDate: 1 }, { unique: true });
 
 export default mongoose.models.EmailLog || mongoose.model<IEmailLog>('EmailLog', EmailLogSchema);
