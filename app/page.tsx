@@ -118,6 +118,14 @@ export default function DashboardPage() {
     }
   };
 
+  // Show toast for 5 seconds then auto-close
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   return (
     <main className="max-w-3xl mx-auto py-10 px-4">
       <h1 className="text-3xl font-bold mb-6 text-center">Birthday Notifier Dashboard</h1>
