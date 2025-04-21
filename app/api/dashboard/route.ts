@@ -1,14 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { getTodayEmailCount, getLogs } from '@/utils/logger';
-
-const USERS_PATH = path.resolve(process.cwd(), 'data/users.json');
-const LOG_PATH = path.resolve(process.cwd(), 'data/logs.json');
-
-function getUsers() {
-  if (!fs.existsSync(USERS_PATH)) return [];
-  return JSON.parse(fs.readFileSync(USERS_PATH, 'utf-8'));
-}
+import dbConnect from '@/utils/mongodb';
+import User from '@/models/User';
+import EmailLog from '@/models/EmailLog';
 
 function isTodayBirthday(dob: string, todayStr?: string) {
   let today = todayStr ? new Date(todayStr) : new Date();
@@ -19,20 +11,14 @@ function isTodayBirthday(dob: string, todayStr?: string) {
   );
 }
 
-function getTodayEmailCount(todayStr?: string): number {
-  if (!fs.existsSync(LOG_PATH)) return 0;
-  const logs = JSON.parse(fs.readFileSync(LOG_PATH, 'utf-8'));
-  const today = todayStr || new Date().toISOString().slice(0, 10);
-  return logs.filter((log: any) => log.sentAt.startsWith(today)).length;
-}
-
 export async function GET() {
-  const users = getUsers();
+  await dbConnect();
   // Use India timezone for today
   const indiaDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
   const today = indiaDate;
+  const users = await User.find({}).lean();
   const usersWithBirthday = users.filter((u: any) => isTodayBirthday(u.dob, today));
-  const emailsSentToday = getTodayEmailCount(today);
-  const logs = getLogs(20);
+  const emailsSentToday = await EmailLog.countDocuments({ sentAt: { $regex: `^${today}` } });
+  const logs = await EmailLog.find({}).sort({ sentAt: -1 }).limit(20).lean();
   return Response.json({ users, today, usersWithBirthday, emailsSentToday, logs });
 }

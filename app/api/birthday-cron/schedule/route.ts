@@ -29,7 +29,13 @@ export async function GET() {
   const todayBirthdayUsers: IUserLean[] = uniqueUsers.filter(user => isTodayBirthday(user.dob, today));
 
   // Load today's email logs to prevent duplicate sends
-  const todayLogs: IEmailLogLean[] = await EmailLog.find({ sentAt: { $regex: `^${today}` } }).lean();
+  const todayLogsRaw = await EmailLog.find({ sentAt: { $regex: `^${today}` } }).lean().exec();
+  const todayLogs: IEmailLogLean[] = todayLogsRaw.map((log: any) => ({
+    name: log.name,
+    dob: log.dob,
+    email: log.email,
+    sentAt: log.sentAt,
+  }));
   const sent: string[] = [];
   for (const user of todayBirthdayUsers) {
     // Check if already sent today
