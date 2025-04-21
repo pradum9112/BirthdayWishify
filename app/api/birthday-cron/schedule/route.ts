@@ -1,7 +1,7 @@
 // IMPORTANT: This endpoint must be triggered by an external scheduler (e.g., EasyCron, cron-job.org, GitHub Actions) every 5 minutes in production.
 // Serverless environments do NOT run background jobs. See documentation for details.
 
-// schedule: "*/2 * * * *"
+// schedule: "*/5 * * * *"
 import { NextResponse } from 'next/server';
 import dbConnect from '@/utils/mongodb';
 import User, { IUser, IUserLean } from '@/models/User';
@@ -57,8 +57,8 @@ export async function GET() {
   }
 
   try {
-    // Calculate cron window (2 minutes for testing)
-    const cronIntervalMinutes = 2;
+    // Calculate cron window (5 minutes for testing)
+    const cronIntervalMinutes = 5;
     const now = new Date();
     const windowStart = new Date(Math.floor(now.getTime() / (cronIntervalMinutes * 60 * 1000)) * cronIntervalMinutes * 60 * 1000);
     const windowEnd = new Date(windowStart.getTime() + cronIntervalMinutes * 60 * 1000);
