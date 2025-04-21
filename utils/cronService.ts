@@ -1,14 +1,12 @@
 import cron from 'node-cron';
-import fs from 'fs';
-import path from 'path';
 import { sendBirthdayEmail } from './emailService';
-import { logEmailSend, getLogs } from './logger';
+import { logEmailSend } from './logger';
+import dbConnect from './mongodb';
+import User from '@/models/User';
+import EmailLog from '@/models/EmailLog';
 
-const USERS_PATH = path.resolve(process.cwd(), 'data/users.json');
-const LOG_PATH = path.resolve(process.cwd(), 'data/emailLogs.json');
-
-function isTodayBirthday(dob: string) {
-  const today = new Date();
+function isTodayBirthday(dob: string, todayStr?: string) {
+  let today = todayStr ? new Date(todayStr) : new Date();
   const [year, month, day] = dob.split('-');
   return (
     today.getMonth() + 1 === parseInt(month, 10) &&
@@ -20,11 +18,12 @@ let lastCronRun = 0;
 let isRunning = false;
 
 export function startBirthdayCron() {
-  // Run every 2 minutes
-  cron.schedule('*/2 * * * *', async () => {
+  // Run every 5 minutes
+  cron.schedule('*/5 * * * *', async () => {
     if (isRunning) return; // Prevent overlapping runs
     isRunning = true;
     try {
+      await dbConnect();
       const now = Date.now();
       if (now - lastCronRun < 60 * 1000) { // 1 min gap
         isRunning = false;
@@ -32,23 +31,25 @@ export function startBirthdayCron() {
       }
       lastCronRun = now;
 
-      if (!fs.existsSync(USERS_PATH)) {
-        isRunning = false;
-        return;
-      }
-      const users: { name: string; email: string; dob: string }[] = JSON.parse(fs.readFileSync(USERS_PATH, 'utf-8'));
+      // Use India timezone for today
+      const indiaDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
+      const today = indiaDate;
+
+      // Fetch all users from DB
+      const users = await User.find({}).lean();
       // Deduplicate users by email (latest entry wins)
-      const uniqueUsers = Array.from(
-        new Map(users.map((u: { name: string; email: string; dob: string }) => [u.email, u])).values()
-      );
-      const emailed = new Set<string>();
+      const uniqueUsers = Array.from(new Map(users.map((u: any) => [u.email, u])).values());
+
+      // Fetch today's sent logs from DB
+      const todayLogs = await EmailLog.find({ sentAt: { $regex: `^${today}` } }).lean();
+      const sentEmails = new Set(todayLogs.map((log: any) => log.email));
 
       for (const user of uniqueUsers) {
-        if (isTodayBirthday(user.dob) && !emailed.has(user.email)) {
+        if (isTodayBirthday(user.dob, today) && !sentEmails.has(user.email)) {
           try {
             await sendBirthdayEmail(user.email, user.name);
-            logEmailSend(user);
-            emailed.add(user.email);
+            await logEmailSend(user);
+            sentEmails.add(user.email);
           } catch (err) {
             console.error(`Failed to send birthday email to ${user.email}:`, err);
           }
