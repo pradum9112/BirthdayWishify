@@ -79,6 +79,7 @@ export default function DashboardPage() {
   const handleRefreshLogs = async () => {
     setLoading(true);
     setToast(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     try {
       const [logsRes, usersRes] = await Promise.all([
         fetch('/api/logs'),
@@ -106,6 +107,7 @@ export default function DashboardPage() {
     if (!window.confirm('Are you sure you want to clear all logs? This action cannot be undone.')) return;
     setLoading(true);
     setToast(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     try {
       const res = await fetch('/api/logs', { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to clear logs');
