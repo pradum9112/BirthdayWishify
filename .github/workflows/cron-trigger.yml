@@ -2,7 +2,7 @@ name: Call Birthday Cron API every 5 minutes
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Every 5 minutes (UTC)
+    - cron: '*/2 * * * *'  # Every 2 minutes (UTC)
   workflow_dispatch:       # Allows manual run from GitHub UI
 
 jobs:

@@ -13,22 +13,21 @@ function isTodayBirthday(dob: string, todayStr?: string) {
   );
 }
 
-let lastCronRun = 0;
 let isRunning = false;
 
 export function startBirthdayCron() {
-  // Run every 5 minutes
-  cron.schedule('*/5 * * * *', async () => {
+  // Run every 2 minutes (for testing)
+  cron.schedule('*/2 * * * *', async () => {
     if (isRunning) return; // Prevent overlapping runs
     isRunning = true;
     try {
       await dbConnect();
-      const now = Date.now();
-      if (now - lastCronRun < 60 * 1000) { // 1 min gap
-        isRunning = false;
-        return;
-      }
-      lastCronRun = now;
+
+      // Calculate cron window
+      const cronIntervalMinutes = 2;
+      const now = new Date();
+      const windowStart = new Date(Math.floor(now.getTime() / (cronIntervalMinutes * 60 * 1000)) * cronIntervalMinutes * 60 * 1000);
+      const windowEnd = new Date(windowStart.getTime() + cronIntervalMinutes * 60 * 1000);
 
       // Use India timezone for today
       const indiaDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
@@ -41,24 +40,26 @@ export function startBirthdayCron() {
 
       for (const user of uniqueUsers) {
         if (isTodayBirthday(user.dob, today)) {
-          // Atomically insert a log for this user for today, only if it doesn't exist
-          const log = await EmailLog.findOneAndUpdate(
-            { email: user.email, sentAt: { $regex: `^${today}` } },
-            { $setOnInsert: { name: user.name, dob: user.dob, email: user.email, sentAt: new Date().toISOString() } },
-            { upsert: true, new: false }
-          ).lean();
+          // Check if a log for this user exists in this cron window
+          const existingLog = await EmailLog.findOne({
+            email: user.email,
+            sentAt: { $gte: windowStart.toISOString(), $lt: windowEnd.toISOString() }
+          }).lean();
 
-          if (!log) {
-            // If log was just inserted (i.e., this is the first send today), send the email
+          if (!existingLog) {
             try {
               await sendBirthdayEmail(user.email, user.name);
+              await EmailLog.create({
+                name: user.name,
+                dob: user.dob,
+                email: user.email,
+                sentAt: now.toISOString(),
+                sentAtDate: today
+              });
             } catch (err) {
               console.error(`Failed to send birthday email to ${user.email}:`, err);
-              // Optionally: remove the log if sending failed
-              await EmailLog.deleteOne({ email: user.email, sentAt: { $regex: `^${today}` } });
             }
           }
-          // If log was not null, email was already sent today, do nothing
         }
       }
     } finally {

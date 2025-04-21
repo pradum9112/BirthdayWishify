@@ -28,36 +28,29 @@ export async function GET() {
   // Only users whose birthday is today
   const todayBirthdayUsers: IUserLean[] = uniqueUsers.filter(user => isTodayBirthday(user.dob, today));
 
-  // Load today's email logs to prevent duplicate sends
-  const todayLogsRaw = await EmailLog.find({ sentAt: { $regex: `^${today}` } }).lean().exec();
-  const todayLogs: IEmailLogLean[] = todayLogsRaw.map((log: any) => ({
-    name: log.name,
-    dob: log.dob,
-    email: log.email,
-    sentAt: log.sentAt,
-  }));
   const sent: string[] = [];
   for (const user of todayBirthdayUsers) {
-    // Check if already sent today
-    const alreadySent = todayLogs.some((log: IEmailLogLean) => log.email === user.email);
-    if (!alreadySent) {
-      try {
+    try {
+      // Atomic upsert: only one request will send the email
+      const log = await EmailLog.findOneAndUpdate(
+        { email: user.email, sentAtDate: today },
+        { $setOnInsert: { name: user.name, dob: user.dob, email: user.email, sentAt: new Date().toISOString(), sentAtDate: today } },
+        { upsert: true, new: false }
+      ).lean();
+      if (!log) {
         await sendBirthdayEmail(user.email, user.name);
-      } catch (emailErr: any) {
-        console.error(`Failed to send birthday email to ${user.email}:`, emailErr);
-        // Gmail sending limit error handling
-        if (typeof emailErr?.message === 'string' && emailErr.message.includes('Daily user sending limit exceeded')) {
-          return NextResponse.json({ error: 'limit_exceeded', message: 'Daily user sending limit exceeded. For more information on Gmail' }, { status: 429 });
-        }
-        continue; // Do not proceed to log if email failed
-      }
-      try {
-        await EmailLog.create({ name: user.name, email: user.email, dob: user.dob, sentAt: new Date().toISOString() });
         logEmailSend(user);
         sent.push(user.email);
-      } catch (logErr) {
-        console.error(`Email sent to ${user.email}, but failed to log email:`, logErr);
       }
+      // If log existed, do nothing
+    } catch (emailErr: any) {
+      console.error(`Failed to send birthday email to ${user.email}:`, emailErr);
+      // Gmail sending limit error handling
+      if (typeof emailErr?.message === 'string' && emailErr.message.includes('Daily user sending limit exceeded')) {
+        return NextResponse.json({ error: 'limit_exceeded', message: 'Daily user sending limit exceeded. For more information on Gmail' }, { status: 429 });
+      }
+      // Optionally: remove the log if sending failed
+      await EmailLog.deleteOne({ email: user.email, sentAtDate: today });
     }
   }
   // Return both the list of today's birthdays and which were emailed this run

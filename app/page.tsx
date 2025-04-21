@@ -110,6 +110,7 @@ export default function DashboardPage() {
       const res = await fetch('/api/logs', { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to clear logs');
       setLogs([]);
+      setEmailsSentToday(0); // Set email count to 0 after clearing logs
       setToast({ type: 'success', message: 'Logs cleared successfully.' });
     } catch (err) {
       setToast({ type: 'error', message: 'Failed to clear logs.' });
