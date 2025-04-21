@@ -1,6 +1,5 @@
 import cron from 'node-cron';
 import { sendBirthdayEmail } from './emailService';
-import { logEmailSend } from './logger';
 import dbConnect from './mongodb';
 import User from '@/models/User';
 import EmailLog from '@/models/EmailLog';
@@ -40,19 +39,26 @@ export function startBirthdayCron() {
       // Deduplicate users by email (latest entry wins)
       const uniqueUsers = Array.from(new Map(users.map((u: any) => [u.email, u])).values());
 
-      // Fetch today's sent logs from DB
-      const todayLogs = await EmailLog.find({ sentAt: { $regex: `^${today}` } }).lean();
-      const sentEmails = new Set(todayLogs.map((log: any) => log.email));
-
       for (const user of uniqueUsers) {
-        if (isTodayBirthday(user.dob, today) && !sentEmails.has(user.email)) {
-          try {
-            await sendBirthdayEmail(user.email, user.name);
-            await logEmailSend(user);
-            sentEmails.add(user.email);
-          } catch (err) {
-            console.error(`Failed to send birthday email to ${user.email}:`, err);
+        if (isTodayBirthday(user.dob, today)) {
+          // Atomically insert a log for this user for today, only if it doesn't exist
+          const log = await EmailLog.findOneAndUpdate(
+            { email: user.email, sentAt: { $regex: `^${today}` } },
+            { $setOnInsert: { name: user.name, dob: user.dob, email: user.email, sentAt: new Date().toISOString() } },
+            { upsert: true, new: false }
+          ).lean();
+
+          if (!log) {
+            // If log was just inserted (i.e., this is the first send today), send the email
+            try {
+              await sendBirthdayEmail(user.email, user.name);
+            } catch (err) {
+              console.error(`Failed to send birthday email to ${user.email}:`, err);
+              // Optionally: remove the log if sending failed
+              await EmailLog.deleteOne({ email: user.email, sentAt: { $regex: `^${today}` } });
+            }
           }
+          // If log was not null, email was already sent today, do nothing
         }
       }
     } finally {
